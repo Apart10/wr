@@ -139,7 +139,7 @@
 
         for (let dateStr of selectedDates) {
           const event = {
-            summary: 'Booked',
+            summary: a_id,
             start: { date: dateStr },
             end: { date: getNextDay(dateStr) }, // ✅ exclusive end date for Google Calendar
           };

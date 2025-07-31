@@ -64,148 +64,160 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <script>
-    const owner_id = new URLSearchParams(window.location.search).get('owner_id') || '';
+  const owner_id = new URLSearchParams(window.location.search).get('owner_id') || '';
+  const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxSs9_NROeYziq48Pdu6tGZGSGTsmS-O-z_GrBA-iLSih6DlJofDUFJlvIQh0_KFBPk/exec';
 
-    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxSs9_NROeYziq48Pdu6tGZGSGTsmS-O-z_GrBA-iLSih6DlJofDUFJlvIQh0_KFBPk/exec'; // 🔗 Replace with your real URL
-    const CLIENT_ID = '323959749239-cm17dnvhn8ala4anp3001arjtl2mn6tn.apps.googleusercontent.com';
-    const API_KEY = 'AIzaSyCpMKOsPAdDykkl1pXlL8j6RxTXyGPG4k8';
-    const SCOPES = 'https://www.googleapis.com/auth/calendar.events';
+  const CLIENT_ID = '323959749239-cm17dnvhn8ala4anp3001arjtl2mn6tn.apps.googleusercontent.com';
+  const API_KEY = 'AIzaSyCpMKOsPAdDykkl1pXlL8j6RxTXyGPG4k8';
+  const SCOPES = 'https://www.googleapis.com/auth/calendar.events';
 
-    let gapiInited = false;
-    let gisInited = false;
-    let tokenClient;
+  let gapiInited = false;
+  let gisInited = false;
+  let tokenClient;
 
-    window.onload = () => {
-      gapi.load('client', async () => {
-        await gapi.client.init({
-          apiKey: API_KEY,
-          discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
-        });
-        gapiInited = true;
-        maybeRenderCalendars();
+  const allSelectedDates = {}; // 🔑 { a_id: Set of YYYY-MM-DD }
+
+  window.onload = () => {
+    gapi.load('client', async () => {
+      await gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
       });
+      gapiInited = true;
+      maybeRenderCalendars();
+    });
 
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: '', // Set later
-      });
-      gisInited = true;
-    };
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: '', // set later
+    });
+    gisInited = true;
+  };
 
-    function maybeRenderCalendars() {
-      if (gapiInited && gisInited) {
-        loadOwnerApartments();
-      }
+  function maybeRenderCalendars() {
+    if (gapiInited && gisInited) {
+      loadOwnerApartments();
+    }
+  }
+
+  async function loadOwnerApartments() {
+    const res = await fetch(`${WEBAPP_URL}?owner_id=${owner_id}`);
+    const data = await res.json();
+
+    if (data.error) {
+      alert("Error: " + data.error);
+      return;
     }
 
-    async function loadOwnerApartments() {
-      const res = await fetch(`${WEBAPP_URL}?owner_id=${owner_id}`);
-      const data = await res.json();
+    document.getElementById("greetingTitle").textContent = `Hello, ${data.ownerName}`;
 
-      if (data.error) {
-        alert("Error: " + data.error);
-        return;
-      }
-
-      document.getElementById("greetingTitle").textContent = `Hello, ${data.ownerName}`;
-
-      for (const apt of data.apartments) {
-        createCalendarForApartment(apt);
-      }
+    for (const apt of data.apartments) {
+      createCalendarForApartment(apt);
     }
+  }
 
-    function getNextDay(dateStr) {
-      const date = new Date(dateStr);
-      date.setDate(date.getDate() + 1);
-      return date.toISOString().split('T')[0];
-    }
+  function getNextDay(dateStr) {
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().split('T')[0];
+  }
 
-    function createCalendarForApartment(apt) {
-      const container = document.createElement('div');
-      container.className = 'calendar-container';
+  function createCalendarForApartment(apt) {
+    const container = document.createElement('div');
+    container.className = 'calendar-container';
 
-      const title = document.createElement('div');
-      title.className = 'calendar-title';
-      title.textContent = apt.title || apt.a_id;
+    const title = document.createElement('div');
+    title.className = 'calendar-title';
+    title.textContent = apt.title || apt.a_id;
 
-      const calendarDiv = document.createElement('div');
-      calendarDiv.id = `calendar-${apt.a_id}`;
+    const calendarDiv = document.createElement('div');
+    calendarDiv.id = `calendar-${apt.a_id}`;
 
-      const button = document.createElement('button');
-      button.textContent = 'Book Selected Dates';
+    const button = document.createElement('button');
+    button.textContent = 'Book Selected Dates';
 
-      container.appendChild(title);
-      container.appendChild(calendarDiv);
-      container.appendChild(button);
-      document.getElementById('calendarsWrapper').appendChild(container);
+    container.appendChild(title);
+    container.appendChild(calendarDiv);
+    container.appendChild(button);
+    document.getElementById('calendarsWrapper').appendChild(container);
 
-      let bookedDates = new Set();
-      let selectedDates = new Set();
+    let bookedDates = new Set();
+    allSelectedDates[apt.a_id] = new Set();
 
-      fetch(`${WEBAPP_URL}?a_id=${apt.a_id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.bookings) {
-            data.bookings.forEach(b => {
-              const start = new Date(b.start);
-              const end = new Date(b.end);
-              let current = new Date(start);
-              while (current <= end) {
-                bookedDates.add(current.toISOString().split('T')[0]);
-                current.setDate(current.getDate() + 1);
-              }
-            });
-          }
-
-          const calendar = new FullCalendar.Calendar(calendarDiv, {
-            initialView: 'dayGridMonth',
-            selectable: true,
-            dateClick: function(info) {
-              const dateStr = info.dateStr;
-              const todayStr = new Date().toISOString().split('T')[0];
-              if (info.date < new Date(todayStr) || bookedDates.has(dateStr)) return;
-
-              const cell = info.dayEl;
-              if (selectedDates.has(dateStr)) {
-                selectedDates.delete(dateStr);
-                cell.classList.remove('fc-day-selected');
-                cell.classList.add('fc-day-available');
-              } else {
-                selectedDates.add(dateStr);
-                cell.classList.remove('fc-day-available');
-                cell.classList.add('fc-day-selected');
-              }
-            },
-            datesSet: function() {
-              setTimeout(() => {
-                document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
-                  const date = cell.getAttribute('data-date');
-                  const dayDate = new Date(date);
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  if (dayDate < today) {
-                    cell.classList.add('fc-day-past');
-                  } else if (bookedDates.has(date)) {
-                    cell.classList.add('fc-day-booked');
-                  } else {
-                    cell.classList.add('fc-day-available');
-                  }
-                });
-              }, 300);
+    fetch(`${WEBAPP_URL}?a_id=${apt.a_id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.bookings) {
+          data.bookings.forEach(b => {
+            const start = new Date(b.start);
+            const end = new Date(b.end);
+            let current = new Date(start);
+            while (current <= end) {
+              bookedDates.add(current.toISOString().split('T')[0]);
+              current.setDate(current.getDate() + 1);
             }
           });
+        }
 
-          calendar.render();
+        const calendar = new FullCalendar.Calendar(calendarDiv, {
+          initialView: 'dayGridMonth',
+          selectable: true,
+          dateClick: function(info) {
+            const dateStr = info.dateStr;
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (info.date < new Date(todayStr) || bookedDates.has(dateStr)) return;
+
+            const cell = info.dayEl;
+            const sel = allSelectedDates[apt.a_id];
+            if (sel.has(dateStr)) {
+              sel.delete(dateStr);
+              cell.classList.remove('fc-day-selected');
+              cell.classList.add('fc-day-available');
+            } else {
+              sel.add(dateStr);
+              cell.classList.remove('fc-day-available');
+              cell.classList.add('fc-day-selected');
+            }
+          },
+          datesSet: function() {
+            setTimeout(() => {
+              document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
+                const date = cell.getAttribute('data-date');
+                const dayDate = new Date(date);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (dayDate < today) {
+                  cell.classList.add('fc-day-past');
+                } else if (bookedDates.has(date)) {
+                  cell.classList.add('fc-day-booked');
+                } else {
+                  cell.classList.add('fc-day-available');
+                }
+              });
+            }, 300);
+          }
         });
 
-      button.onclick = () => {
-        tokenClient.callback = async (resp) => {
-          if (resp.error) throw (resp);
+        calendar.render();
+      });
 
-          for (let dateStr of selectedDates) {
+    button.onclick = () => {
+      tokenClient.callback = async (resp) => {
+        if (resp.error) throw resp;
+
+        let totalEvents = 0;
+
+        for (const [a_id, dateSet] of Object.entries(allSelectedDates)) {
+          if (!dateSet.size) continue;
+          const apt = getApartmentById(a_id);
+          if (!apt) continue;
+
+          const dates = Array.from(dateSet).sort();
+
+          for (const dateStr of dates) {
             const event = {
-              summary: apt.a_id,
+              summary: a_id,
               start: { date: dateStr },
               end: { date: getNextDay(dateStr) },
             };
@@ -215,16 +227,32 @@
                 calendarId: apt.calendarId,
                 resource: event
               });
+              totalEvents++;
             } catch (err) {
-              console.error("Booking error:", err);
+              console.error(`Booking failed for ${a_id} on ${dateStr}:`, err);
             }
           }
-          alert("Booking complete!");
-          location.reload();
-        };
-        tokenClient.requestAccessToken();
+        }
+
+        alert(`Booking complete! ${totalEvents} events created.`);
+        location.reload();
       };
+      tokenClient.requestAccessToken();
+    };
+  }
+
+  function getApartmentById(a_id) {
+    const all = document.querySelectorAll('.calendar-container');
+    for (const el of all) {
+      if (el.querySelector(`#calendar-${a_id}`)) {
+        return {
+          a_id,
+          calendarId: el.querySelector(`#calendar-${a_id}`).id.replace('calendar-', '')
+        };
+      }
     }
-  </script>
+    return null;
+  }
+</script>
 </body>
 </html>

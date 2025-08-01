@@ -32,7 +32,6 @@
     }
     .fc-day-available {
       background-color: #d1fae5 !important;
-      cursor: pointer;
     }
     .fc-day-selected {
       background-color: #93c5fd !important;
@@ -44,10 +43,9 @@
     }
     .past-label {
       font-size: 10px;
-      color: #555;
-      display: block;
-      text-align: center;
+      color: #444;
       margin-top: 2px;
+      text-align: center;
     }
     button {
       display: block;
@@ -64,6 +62,7 @@
 </head>
 <body>
   <h2 style="text-align:center;" id="greetingTitle">Apartment Booking</h2>
+
   <div id="calendarsWrapper"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
@@ -80,6 +79,7 @@
     let gapiInited = false;
     let gisInited = false;
     let tokenClient;
+
     const allSelectedDates = {};
 
     window.onload = () => {
@@ -171,19 +171,18 @@
             selectable: true,
             dateClick: function(info) {
               const dateStr = info.dateStr;
+              const now = new Date();
+              const hour = now.getHours();
               const today = new Date();
               today.setHours(0, 0, 0, 0);
-              const isTodayOrAfter = info.date >= today;
+              const yesterday = new Date(today);
+              yesterday.setDate(yesterday.getDate() - 1);
 
-              const allowPastDay = (() => {
-                const now = new Date();
-                const hour = now.getHours();
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                return info.date.getTime() === yesterday.getTime() && hour < 5 && !bookedDates.has(dateStr);
-              })();
+              const isToday = info.date.getTime() === today.getTime();
+              const isYesterday = info.date.getTime() === yesterday.getTime() && hour < 5;
+              const isSelectable = (isToday || info.date > today || isYesterday) && !bookedDates.has(dateStr);
 
-              if (!isTodayOrAfter && !allowPastDay) return;
+              if (!isSelectable) return;
 
               const cell = info.dayEl;
               if (allSelectedDates[apt.a_id].has(dateStr)) {
@@ -202,34 +201,34 @@
                 const hour = now.getHours();
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                const yesterdayStr = (() => {
-                  const d = new Date(today);
-                  d.setDate(d.getDate() - 1);
-                  return d.toISOString().split('T')[0];
-                })();
+                const yesterday = new Date(today);
+                yesterday.setDate(today.getDate() - 1);
+                const yesterdayStr = yesterday.toISOString().split('T')[0];
 
                 document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
-                  const date = cell.getAttribute('data-date');
-                  const cellDate = new Date(date);
+                  const dateStr = cell.getAttribute('data-date');
+                  const cellDate = new Date(dateStr);
                   cellDate.setHours(0, 0, 0, 0);
 
-                  if (bookedDates.has(date)) {
+                  cell.classList.remove('fc-day-past', 'fc-day-available', 'fc-day-selected', 'fc-day-booked');
+                  const existingLabel = cell.querySelector('.past-label');
+                  if (existingLabel) existingLabel.remove();
+
+                  if (bookedDates.has(dateStr)) {
                     cell.classList.add('fc-day-booked');
+                  } else if (dateStr === yesterdayStr && hour < 5) {
+                    cell.classList.add('fc-day-available');
+                    const label = document.createElement('div');
+                    label.className = 'past-label';
+                    label.textContent = 'Past day';
+                    cell.appendChild(label);
                   } else if (cellDate < today) {
-                    if (date === yesterdayStr && hour < 5) {
-                      cell.classList.add('fc-day-available');
-                      const label = document.createElement('div');
-                      label.className = 'past-label';
-                      label.textContent = 'Past day';
-                      cell.appendChild(label);
-                    } else {
-                      cell.classList.add('fc-day-past');
-                    }
+                    cell.classList.add('fc-day-past');
                   } else {
                     cell.classList.add('fc-day-available');
                   }
                 });
-              }, 300);
+              }, 100);
             }
           });
 
@@ -262,7 +261,7 @@
               };
 
               try {
-                const result = await gapi.client.calendar.events.insert({
+                await gapi.client.calendar.events.insert({
                   calendarId: calendarId,
                   resource: event
                 });

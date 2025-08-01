@@ -1,3 +1,4 @@
+<!-- START OF index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -41,11 +42,10 @@
       color: white !important;
       pointer-events: none !important;
     }
-    .past-label {
+    .past-day-label {
       font-size: 10px;
-      color: #333;
-      text-align: center;
-      margin-top: 4px;
+      color: #555;
+      margin-top: 2px;
     }
     button {
       display: block;
@@ -62,7 +62,6 @@
 </head>
 <body>
   <h2 style="text-align:center;" id="greetingTitle">Apartment Booking</h2>
-
   <div id="calendarsWrapper"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
@@ -79,7 +78,6 @@
     let gapiInited = false;
     let gisInited = false;
     let tokenClient;
-
     const allSelectedDates = {};
 
     window.onload = () => {
@@ -95,7 +93,7 @@
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: '', // set later
+        callback: '', // set during booking
       });
 
       gisInited = true;
@@ -170,18 +168,14 @@
             initialView: 'dayGridMonth',
             selectable: true,
             dateClick: function(info) {
-              const now = new Date();
-              const hour = now.getHours();
+              const dateStr = info.dateStr;
               const today = new Date();
               today.setHours(0, 0, 0, 0);
-              const yesterday = new Date(today);
-              yesterday.setDate(today.getDate() - 1);
+              const clicked = new Date(dateStr);
+              clicked.setHours(0, 0, 0, 0);
 
-              const dateStr = info.dateStr;
-              const isYesterdayAndEarly = (dateStr === yesterday.toISOString().split('T')[0] && hour < 5);
-              const isFutureOrToday = info.date >= today;
-
-              if (!(isYesterdayAndEarly || isFutureOrToday) || bookedDates.has(dateStr)) return;
+              if (clicked < today && dateStr !== getYesterdayStr()) return;
+              if (bookedDates.has(dateStr)) return;
 
               const cell = info.dayEl;
               if (allSelectedDates[apt.a_id].has(dateStr)) {
@@ -194,46 +188,45 @@
                 cell.classList.add('fc-day-selected');
               }
             },
-            datesSet: function () {
-  setTimeout(() => {
-    const now = new Date();
-    const currentHour = now.getHours();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+            datesSet: function() {
+              setTimeout(() => {
+                const now = new Date();
+                const hour = now.getHours();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const yesterday = new Date(today);
+                yesterday.setDate(today.getDate() - 1);
+                const yesterdayStr = yesterday.toISOString().split('T')[0];
+                const allowYesterday = hour < 6;
 
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-    const allowYesterday = currentHour < 6;
+                document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
+                  const cellDateStr = cell.getAttribute('data-date');
+                  const cellDate = new Date(cellDateStr);
+                  cellDate.setHours(0, 0, 0, 0);
 
-    document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
-      const cellDateStr = cell.getAttribute('data-date');
-      const cellDate = new Date(cellDateStr);
+                  // Clear previous styling
+                  cell.classList.remove('fc-day-past', 'fc-day-booked', 'fc-day-available', 'fc-day-selected');
+                  const existingLabel = cell.querySelector('.past-day-label');
+                  if (existingLabel) existingLabel.remove();
 
-      // Clear previously applied classes
-      cell.classList.remove('fc-day-available', 'fc-day-selected', 'fc-day-booked', 'fc-day-past');
-      const existingLabel = cell.querySelector('.past-day-label');
-      if (existingLabel) existingLabel.remove();
+                  if (bookedDates.has(cellDateStr)) {
+                    cell.classList.add('fc-day-booked');
+                  } else if (allowYesterday && cellDateStr === yesterdayStr) {
+                    cell.classList.add('fc-day-available');
 
-      if (bookedDates.has(cellDateStr)) {
-        cell.classList.add('fc-day-booked');
-      } else if (allowYesterday && cellDateStr === yesterdayStr) {
-        cell.classList.add('fc-day-available');
-
-        const label = document.createElement('div');
-        label.textContent = "Past day";
-        label.className = 'past-day-label';
-        cell.appendChild(label);
-      } else if (cellDate < today) {
-        cell.classList.add('fc-day-past');
-      } else {
-        cell.classList.add('fc-day-available');
-      }
-    });
-  }, 0);
-}
-
-            });
+                    const label = document.createElement('div');
+                    label.className = 'past-day-label';
+                    label.textContent = 'Past day';
+                    cell.appendChild(label);
+                  } else if (cellDate < today) {
+                    cell.classList.add('fc-day-past');
+                  } else {
+                    cell.classList.add('fc-day-available');
+                  }
+                });
+              }, 0);
+            }
+          });
 
           calendar.render();
         });
@@ -250,11 +243,7 @@
             const res = await fetch(`${WEBAPP_URL}?a_id=${a_id}`);
             const data = await res.json();
             const calendarId = data.calendarId;
-
-            if (!calendarId) {
-              console.warn(`No calendarId found for ${a_id}`);
-              continue;
-            }
+            if (!calendarId) continue;
 
             for (let dateStr of datesSet) {
               const event = {
@@ -264,10 +253,11 @@
               };
 
               try {
-                await gapi.client.calendar.events.insert({
+                const result = await gapi.client.calendar.events.insert({
                   calendarId: calendarId,
                   resource: event
                 });
+                console.log(`✅ Created: ${dateStr} in ${a_id}`, result);
                 createdCount++;
               } catch (err) {
                 console.error(`❌ Error for ${a_id} on ${dateStr}:`, err);
@@ -282,6 +272,13 @@
         tokenClient.requestAccessToken();
       };
     }
+
+    function getYesterdayStr() {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().split('T')[0];
+    }
   </script>
 </body>
 </html>
+<!-- END OF index.html -->

@@ -32,6 +32,7 @@
     }
     .fc-day-available {
       background-color: #d1fae5 !important;
+      cursor: pointer;
     }
     .fc-day-selected {
       background-color: #93c5fd !important;
@@ -40,6 +41,13 @@
       background-color: #f87171 !important;
       color: white !important;
       pointer-events: none !important;
+    }
+    .past-label {
+      font-size: 10px;
+      color: #555;
+      display: block;
+      text-align: center;
+      margin-top: 2px;
     }
     button {
       display: block;
@@ -87,7 +95,7 @@
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: '', // set during booking
+        callback: '', // set later
       });
 
       gisInited = true;
@@ -165,10 +173,17 @@
               const dateStr = info.dateStr;
               const today = new Date();
               today.setHours(0, 0, 0, 0);
-              const clicked = new Date(dateStr);
-              clicked.setHours(0, 0, 0, 0);
+              const isTodayOrAfter = info.date >= today;
 
-              if (clicked < today || bookedDates.has(dateStr)) return;
+              const allowPastDay = (() => {
+                const now = new Date();
+                const hour = now.getHours();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                return info.date.getTime() === yesterday.getTime() && hour < 5 && !bookedDates.has(dateStr);
+              })();
+
+              if (!isTodayOrAfter && !allowPastDay) return;
 
               const cell = info.dayEl;
               if (allSelectedDates[apt.a_id].has(dateStr)) {
@@ -183,17 +198,33 @@
             },
             datesSet: function() {
               setTimeout(() => {
+                const now = new Date();
+                const hour = now.getHours();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const yesterdayStr = (() => {
+                  const d = new Date(today);
+                  d.setDate(d.getDate() - 1);
+                  return d.toISOString().split('T')[0];
+                })();
+
                 document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
                   const date = cell.getAttribute('data-date');
-                  const dayDate = new Date(date);
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  dayDate.setHours(0, 0, 0, 0);
+                  const cellDate = new Date(date);
+                  cellDate.setHours(0, 0, 0, 0);
 
-                  if (dayDate < today) {
-                    cell.classList.add('fc-day-past');
-                  } else if (bookedDates.has(date)) {
+                  if (bookedDates.has(date)) {
                     cell.classList.add('fc-day-booked');
+                  } else if (cellDate < today) {
+                    if (date === yesterdayStr && hour < 5) {
+                      cell.classList.add('fc-day-available');
+                      const label = document.createElement('div');
+                      label.className = 'past-label';
+                      label.textContent = 'Past day';
+                      cell.appendChild(label);
+                    } else {
+                      cell.classList.add('fc-day-past');
+                    }
                   } else {
                     cell.classList.add('fc-day-available');
                   }
@@ -235,7 +266,6 @@
                   calendarId: calendarId,
                   resource: event
                 });
-                console.log(`✅ Created: ${dateStr} in ${a_id}`, result);
                 createdCount++;
               } catch (err) {
                 console.error(`❌ Error for ${a_id} on ${dateStr}:`, err);

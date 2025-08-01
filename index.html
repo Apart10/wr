@@ -194,40 +194,40 @@
                 cell.classList.add('fc-day-selected');
               }
             },
-            datesSet: function() {
-              setTimeout(() => {
-                const now = new Date();
-                const hour = now.getHours();
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const yesterday = new Date(today);
-                yesterday.setDate(today.getDate() - 1);
-                const yesterdayStr = yesterday.toISOString().split('T')[0];
+            datesSet: function () {
+  setTimeout(() => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-                document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
-                  const dateStr = cell.getAttribute('data-date');
-                  const dateObj = new Date(dateStr);
-                  dateObj.setHours(0, 0, 0, 0);
-                  cell.classList.remove('fc-day-past', 'fc-day-available', 'fc-day-selected', 'fc-day-booked');
-                  const existingLabel = cell.querySelector('.past-label');
-                  if (existingLabel) existingLabel.remove();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const allowYesterday = currentHour < 6;
 
-                  if (bookedDates.has(dateStr)) {
-                    cell.classList.add('fc-day-booked');
-                  } else if (dateStr === yesterdayStr && hour < 5) {
-                    cell.classList.add('fc-day-available');
-                    const label = document.createElement('div');
-                    label.className = 'past-label';
-                    label.textContent = 'Past day';
-                    cell.appendChild(label);
-                  } else if (dateObj < today) {
-                    cell.classList.add('fc-day-past');
-                  } else {
-                    cell.classList.add('fc-day-available');
-                  }
-                });
-              }, 100);
-            }
+    document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
+      const date = cell.getAttribute('data-date');
+      const dateObj = new Date(date);
+
+      if (bookedDates.has(date)) {
+        cell.classList.add('fc-day-booked');
+      } else if (date === yesterdayStr && allowYesterday) {
+        cell.classList.add('fc-day-available');
+
+        // Add "Past day" label inside the correct cell
+        const label = document.createElement('div');
+        label.textContent = "Past day";
+        label.className = 'past-day-label';
+        cell.appendChild(label);
+      } else if (dateObj < today) {
+        cell.classList.add('fc-day-past');
+      } else {
+        cell.classList.add('fc-day-available');
+      }
+    });
+  }, 300);
+}
           });
 
           calendar.render();

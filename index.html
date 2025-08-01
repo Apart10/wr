@@ -43,9 +43,9 @@
     }
     .past-label {
       font-size: 10px;
-      color: #444;
-      margin-top: 2px;
+      color: #333;
       text-align: center;
+      margin-top: 4px;
     }
     button {
       display: block;
@@ -176,21 +176,22 @@
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               const yesterday = new Date(today);
-              yesterday.setDate(yesterday.getDate() - 1);
+              yesterday.setDate(today.getDate() - 1);
 
-              const isToday = info.date.getTime() === today.getTime();
-              const isYesterday = info.date.getTime() === yesterday.getTime() && hour < 5;
-              const isSelectable = (isToday || info.date > today || isYesterday) && !bookedDates.has(dateStr);
+              const dateISO = info.date.toISOString().split('T')[0];
+              const isYesterday = dateISO === yesterday.toISOString().split('T')[0] && hour < 5;
+              const isTodayOrFuture = info.date >= today;
 
+              const isSelectable = (isTodayOrFuture || isYesterday) && !bookedDates.has(dateISO);
               if (!isSelectable) return;
 
               const cell = info.dayEl;
-              if (allSelectedDates[apt.a_id].has(dateStr)) {
-                allSelectedDates[apt.a_id].delete(dateStr);
+              if (allSelectedDates[apt.a_id].has(dateISO)) {
+                allSelectedDates[apt.a_id].delete(dateISO);
                 cell.classList.remove('fc-day-selected');
                 cell.classList.add('fc-day-available');
               } else {
-                allSelectedDates[apt.a_id].add(dateStr);
+                allSelectedDates[apt.a_id].add(dateISO);
                 cell.classList.remove('fc-day-available');
                 cell.classList.add('fc-day-selected');
               }
@@ -207,9 +208,8 @@
 
                 document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
                   const dateStr = cell.getAttribute('data-date');
-                  const cellDate = new Date(dateStr);
-                  cellDate.setHours(0, 0, 0, 0);
-
+                  const dateObj = new Date(dateStr);
+                  dateObj.setHours(0, 0, 0, 0);
                   cell.classList.remove('fc-day-past', 'fc-day-available', 'fc-day-selected', 'fc-day-booked');
                   const existingLabel = cell.querySelector('.past-label');
                   if (existingLabel) existingLabel.remove();
@@ -222,7 +222,7 @@
                     label.className = 'past-label';
                     label.textContent = 'Past day';
                     cell.appendChild(label);
-                  } else if (cellDate < today) {
+                  } else if (dateObj < today) {
                     cell.classList.add('fc-day-past');
                   } else {
                     cell.classList.add('fc-day-available');

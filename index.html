@@ -44,6 +44,7 @@
     .fc-day-past-bookable {
       background-color: #d1fae5 !important;
       position: relative;
+      cursor: pointer;
     }
     .fc-day-past-bookable::after {
       content: "Past day";
@@ -99,7 +100,7 @@
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: '', // set during booking
+        callback: '',
       });
 
       gisInited = true;
@@ -192,23 +193,24 @@
               const clicked = new Date(dateStr);
               clicked.setHours(0, 0, 0, 0);
 
-              const yesterday = new Date();
-              yesterday.setDate(yesterday.getDate() - 1);
-              yesterday.setHours(0, 0, 0, 0);
-
-              const isTodayOrLater = clicked >= today;
+              const isTodayOrFuture = clicked >= today;
               const isBookableYesterday = isPastMidnight() && dateStr === getYesterday();
 
-              if (!(isTodayOrLater || isBookableYesterday) || bookedDates.has(dateStr)) return;
+              const isBookable = (isTodayOrFuture || isBookableYesterday) && !bookedDates.has(dateStr);
+
+              if (!isBookable) return;
 
               const cell = info.dayEl;
+
               if (allSelectedDates[apt.a_id].has(dateStr)) {
                 allSelectedDates[apt.a_id].delete(dateStr);
                 cell.classList.remove('fc-day-selected');
                 cell.classList.add('fc-day-available');
+                if (isBookableYesterday) cell.classList.add('fc-day-past-bookable');
               } else {
                 allSelectedDates[apt.a_id].add(dateStr);
                 cell.classList.remove('fc-day-available');
+                cell.classList.remove('fc-day-past-bookable');
                 cell.classList.add('fc-day-selected');
               }
             },

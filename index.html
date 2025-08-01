@@ -170,7 +170,6 @@
             initialView: 'dayGridMonth',
             selectable: true,
             dateClick: function(info) {
-              const dateStr = info.dateStr;
               const now = new Date();
               const hour = now.getHours();
               const today = new Date();
@@ -178,20 +177,19 @@
               const yesterday = new Date(today);
               yesterday.setDate(today.getDate() - 1);
 
-              const dateISO = info.date.toISOString().split('T')[0];
-              const isYesterday = dateISO === yesterday.toISOString().split('T')[0] && hour < 5;
-              const isTodayOrFuture = info.date >= today;
+              const dateStr = info.dateStr;
+              const isYesterdayAndEarly = (dateStr === yesterday.toISOString().split('T')[0] && hour < 5);
+              const isFutureOrToday = info.date >= today;
 
-              const isSelectable = (isTodayOrFuture || isYesterday) && !bookedDates.has(dateISO);
-              if (!isSelectable) return;
+              if (!(isYesterdayAndEarly || isFutureOrToday) || bookedDates.has(dateStr)) return;
 
               const cell = info.dayEl;
-              if (allSelectedDates[apt.a_id].has(dateISO)) {
-                allSelectedDates[apt.a_id].delete(dateISO);
+              if (allSelectedDates[apt.a_id].has(dateStr)) {
+                allSelectedDates[apt.a_id].delete(dateStr);
                 cell.classList.remove('fc-day-selected');
                 cell.classList.add('fc-day-available');
               } else {
-                allSelectedDates[apt.a_id].add(dateISO);
+                allSelectedDates[apt.a_id].add(dateStr);
                 cell.classList.remove('fc-day-available');
                 cell.classList.add('fc-day-selected');
               }

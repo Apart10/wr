@@ -207,28 +207,33 @@
     const allowYesterday = currentHour < 6;
 
     document.querySelectorAll(`#calendar-${apt.a_id} .fc-daygrid-day`).forEach(cell => {
-      const date = cell.getAttribute('data-date');
-      const dateObj = new Date(date);
+      const cellDateStr = cell.getAttribute('data-date');
+      const cellDate = new Date(cellDateStr);
 
-      if (bookedDates.has(date)) {
+      // Clear previously applied classes
+      cell.classList.remove('fc-day-available', 'fc-day-selected', 'fc-day-booked', 'fc-day-past');
+      const existingLabel = cell.querySelector('.past-day-label');
+      if (existingLabel) existingLabel.remove();
+
+      if (bookedDates.has(cellDateStr)) {
         cell.classList.add('fc-day-booked');
-      } else if (date === yesterdayStr && allowYesterday) {
+      } else if (allowYesterday && cellDateStr === yesterdayStr) {
         cell.classList.add('fc-day-available');
 
-        // Add "Past day" label inside the correct cell
         const label = document.createElement('div');
         label.textContent = "Past day";
         label.className = 'past-day-label';
         cell.appendChild(label);
-      } else if (dateObj < today) {
+      } else if (cellDate < today) {
         cell.classList.add('fc-day-past');
       } else {
         cell.classList.add('fc-day-available');
       }
     });
-  }, 300);
+  }, 0);
 }
-          });
+
+            });
 
           calendar.render();
         });

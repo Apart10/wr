@@ -41,18 +41,6 @@
       color: white !important;
       pointer-events: none !important;
     }
-    .fc-day-past-bookable {
-      background-color: #d1fae5 !important;
-      position: relative;
-    }
-    .fc-day-past-bookable::after {
-      content: "Past day";
-      font-size: 10px;
-      color: #065f46;
-      position: absolute;
-      bottom: 2px;
-      right: 2px;
-    }
     button {
       display: block;
       margin: 20px auto;
@@ -68,6 +56,7 @@
 </head>
 <body>
   <h2 style="text-align:center;" id="greetingTitle">Apartment Booking</h2>
+
   <div id="calendarsWrapper"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
@@ -84,6 +73,7 @@
     let gapiInited = false;
     let gisInited = false;
     let tokenClient;
+
     const allSelectedDates = {};
 
     window.onload = () => {
@@ -99,7 +89,7 @@
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: '', // set during booking
+        callback: '', // set later
       });
 
       gisInited = true;
@@ -134,18 +124,6 @@
       return date.toISOString().split('T')[0];
     }
 
-    function isPastMidnight() {
-      const now = new Date();
-      const hours = now.getHours();
-      return hours >= 0 && hours < 6;
-    }
-
-    function getYesterday() {
-      const d = new Date();
-      d.setDate(d.getDate() - 1);
-      return d.toISOString().split('T')[0];
-    }
-
     function createCalendarForApartment(apt) {
       const container = document.createElement('div');
       container.className = 'calendar-container';
@@ -175,7 +153,7 @@
               const start = new Date(b.start);
               const end = new Date(b.end);
               let current = new Date(start);
-              while (current < new Date(end)) {
+              while (current <= end) {
                 bookedDates.add(current.toISOString().split('T')[0]);
                 current.setDate(current.getDate() + 1);
               }
@@ -187,19 +165,8 @@
             selectable: true,
             dateClick: function(info) {
               const dateStr = info.dateStr;
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const clicked = new Date(dateStr);
-              clicked.setHours(0, 0, 0, 0);
-
-              const yesterday = new Date();
-              yesterday.setDate(yesterday.getDate() - 1);
-              yesterday.setHours(0, 0, 0, 0);
-
-              const isTodayOrLater = clicked >= today;
-              const isBookableYesterday = isPastMidnight() && dateStr === getYesterday();
-
-              if (!(isTodayOrLater || isBookableYesterday) || bookedDates.has(dateStr)) return;
+              const todayStr = new Date().toISOString().split('T')[0];
+              if (info.date < new Date(todayStr) || bookedDates.has(dateStr)) return;
 
               const cell = info.dayEl;
               if (allSelectedDates[apt.a_id].has(dateStr)) {
@@ -219,16 +186,10 @@
                   const dayDate = new Date(date);
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
-                  dayDate.setHours(0, 0, 0, 0);
-
-                  const isBookableYesterday = isPastMidnight() && date === getYesterday();
-
-                  if (dayDate < today && !isBookableYesterday) {
+                  if (dayDate < today) {
                     cell.classList.add('fc-day-past');
                   } else if (bookedDates.has(date)) {
                     cell.classList.add('fc-day-booked');
-                  } else if (isBookableYesterday) {
-                    cell.classList.add('fc-day-past-bookable');
                   } else {
                     cell.classList.add('fc-day-available');
                   }
@@ -240,6 +201,7 @@
           calendar.render();
         });
 
+      // 🔁 Book ALL selected dates across ALL apartments
       button.onclick = () => {
         tokenClient.callback = async (resp) => {
           if (resp.error) throw resp;

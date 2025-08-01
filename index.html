@@ -56,7 +56,6 @@
 </head>
 <body>
   <h2 style="text-align:center;" id="greetingTitle">Apartment Booking</h2>
-
   <div id="calendarsWrapper"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
@@ -73,7 +72,6 @@
     let gapiInited = false;
     let gisInited = false;
     let tokenClient;
-
     const allSelectedDates = {};
 
     window.onload = () => {
@@ -89,7 +87,7 @@
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: '', // set later
+        callback: '', // set during booking
       });
 
       gisInited = true;
@@ -165,8 +163,12 @@
             selectable: true,
             dateClick: function(info) {
               const dateStr = info.dateStr;
-              const todayStr = new Date().toISOString().split('T')[0];
-              if (info.date < new Date(todayStr) || bookedDates.has(dateStr)) return;
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const clicked = new Date(dateStr);
+              clicked.setHours(0, 0, 0, 0);
+
+              if (clicked < today || bookedDates.has(dateStr)) return;
 
               const cell = info.dayEl;
               if (allSelectedDates[apt.a_id].has(dateStr)) {
@@ -186,6 +188,8 @@
                   const dayDate = new Date(date);
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
+                  dayDate.setHours(0, 0, 0, 0);
+
                   if (dayDate < today) {
                     cell.classList.add('fc-day-past');
                   } else if (bookedDates.has(date)) {
@@ -201,7 +205,6 @@
           calendar.render();
         });
 
-      // 🔁 Book ALL selected dates across ALL apartments
       button.onclick = () => {
         tokenClient.callback = async (resp) => {
           if (resp.error) throw resp;

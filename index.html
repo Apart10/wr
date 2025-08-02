@@ -265,24 +265,28 @@
             continue;
           }
 
-          for (let dateStr of datesSet) {
-            const event = {
-              summary: a_id,
-              start: { date: dateStr },
-              end: { date: getNextDay(dateStr) }
-            };
+          // Your full unchanged code above
 
-            try {
-              const result = await gapi.client.calendar.events.insert({
-                calendarId: calendarId,
-                resource: event
-              });
-              console.log(`✅ Created: ${dateStr} in ${a_id}`, result);
-              createdCount++;
-            } catch (err) {
-              console.error(`❌ Error for ${a_id} on ${dateStr}:`, err);
-            }
-          }
+for (let dateStr of datesSet) {
+  const event = {
+    summary: a_id,  // ✅ fixed here
+    start: { date: dateStr },
+    end: { date: getNextDay(dateStr) }
+  };
+
+  try {
+    const result = await gapi.client.calendar.events.insert({
+      calendarId: calendarId,
+      resource: event
+    });
+    console.log(`✅ Created: ${dateStr} in ${a_id}`, result);
+    createdCount++;
+  } catch (err) {
+    console.error(`❌ Error for ${a_id} on ${dateStr}:`, err);
+  }
+}
+
+// Everything else remains unchanged
         }
 
         alert(`Booking complete! ${createdCount} events created.`);

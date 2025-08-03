@@ -65,6 +65,29 @@
       border-radius: 8px;
       cursor: pointer;
     }
+
+    .spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid #ffffff;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+    button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+
   </style>
 </head>
 <body>
@@ -72,45 +95,13 @@
   <div id="calendarsWrapper"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-  <script src="https://apis.google.com/js/api.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <script>
   const owner_id = new URLSearchParams(window.location.search).get('owner_id') || '';
-  const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxSs9_NROeYziq48Pdu6tGZGSGTsmS-O-z_GrBA-iLSih6DlJofDUFJlvIQh0_KFBPk/exec';
-  const CLIENT_ID = '323959749239-cm17dnvhn8ala4anp3001arjtl2mn6tn.apps.googleusercontent.com';
-  const API_KEY = 'AIzaSyCpMKOsPAdDykkl1pXlL8j6RxTXyGPG4k8';
-  const SCOPES = 'https://www.googleapis.com/auth/calendar.events';
-
-  let gapiInited = false;
-  let gisInited = false;
-  let tokenClient;
+  const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz4-ITmPvUP3orNR8TTektoYPIZKHsVrVipbMGoOvRpKRvflAHxGQh5RiylmakICXow/exec';
   const allSelectedDates = {};
 
-  window.onload = () => {
-    gapi.load('client', async () => {
-      await gapi.client.init({
-        apiKey: API_KEY,
-        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
-      });
-      gapiInited = true;
-      maybeRenderCalendars();
-    });
-
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: '',
-    });
-
-    gisInited = true;
-  };
-
-  function maybeRenderCalendars() {
-    if (gapiInited && gisInited) {
-      loadOwnerApartments();
-    }
-  }
+  window.onload = loadOwnerApartments;
 
   async function loadOwnerApartments() {
     const res = await fetch(`${WEBAPP_URL}?owner_id=${owner_id}`);
@@ -146,16 +137,25 @@
     return date.toISOString().split('T')[0];
   }
 
+  // UPDATED: Use local time for yesterday's date and midnight checks
+  // Replace existing getYesterday with this:
+function getYesterday() {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  now.setDate(now.getDate() - 1);
+  
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+}
+
+
   function isPastMidnight() {
     const now = new Date();
     const hours = now.getHours();
     return hours >= 0 && hours < 6;
-  }
-
-  function getYesterday() {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
   }
 
   function createCalendarForApartment(apt) {
@@ -170,7 +170,9 @@
     calendarDiv.id = `calendar-${apt.a_id}`;
 
     const button = document.createElement('button');
-    button.textContent = 'Book Selected Dates';
+button.textContent = 'Book Selected Dates';
+button.classList.add('book-btn'); // ✅ added class
+
 
     container.appendChild(title);
     container.appendChild(calendarDiv);
@@ -200,7 +202,6 @@
 
             const isTodayOrFuture = clicked >= today;
             const isBookableYesterday = isPastMidnight() && dateStr === getYesterday();
-
             const isBookable = (isTodayOrFuture || isBookableYesterday) && !bookedDates.has(dateStr);
 
             if (!isBookable) return;
@@ -247,55 +248,57 @@
         calendar.render();
       });
 
-    button.onclick = () => {
-      tokenClient.callback = async (resp) => {
-        if (resp.error) throw resp;
+    button.onclick = async (event) => {
+  const clickedButton = event.target;
+  const payload = [];
 
-        let createdCount = 0;
+  for (const a_id in allSelectedDates) {
+    const dates = Array.from(allSelectedDates[a_id] || []);
+    if (dates.length > 0) {
+      payload.push({ a_id, dates });
+    }
+  }
 
-        for (const [a_id, datesSet] of Object.entries(allSelectedDates)) {
-          if (!datesSet.size) continue;
+  if (payload.length === 0) {
+    alert("Please select at least one date.");
+    return;
+  }
 
-          const res = await fetch(`${WEBAPP_URL}?a_id=${a_id}`);
-          const data = await res.json();
-          const calendarId = data.calendarId;
+  // ✅ Disable and dim all custom book buttons
+  const bookButtons = document.querySelectorAll('.book-btn');
+  bookButtons.forEach(btn => {
+    btn.disabled = true;
+    btn.classList.add('dimmed');
+    btn.textContent = 'Booking...';
+  });
 
-          if (!calendarId) {
-            console.warn(`No calendarId found for ${a_id}`);
-            continue;
-          }
-
-          // Your full unchanged code above
-
-for (let dateStr of datesSet) {
-  const event = {
-    summary: a_id,  // ✅ fixed here
-    start: { date: dateStr },
-    end: { date: getNextDay(dateStr) }
-  };
+  // ✅ Only show spinner on clicked one
+  clickedButton.innerHTML = `Booking... <span class="spinner"></span>`;
 
   try {
-    const result = await gapi.client.calendar.events.insert({
-      calendarId: calendarId,
-      resource: event
+    const formBody = 'bookings=' + encodeURIComponent(JSON.stringify(payload));
+
+    const res = await fetch(WEBAPP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formBody
     });
-    console.log(`✅ Created: ${dateStr} in ${a_id}`, result);
-    createdCount++;
+
+    const result = await res.json();
+
+    if (result && result.success) {
+      alert(`Booking complete! ${result.created} events created.`);
+      location.reload();
+    } else {
+      alert("Booking failed: " + (result?.error || "Unknown error"));
+    }
   } catch (err) {
-    console.error(`❌ Error for ${a_id} on ${dateStr}:`, err);
+    alert("Network error: Unable to reach server.");
   }
-}
+};
 
-// Everything else remains unchanged
-        }
 
-        alert(`Booking complete! ${createdCount} events created.`);
-        location.reload();
-      };
-
-      tokenClient.requestAccessToken();
-    };
   }
-</script>
+  </script>
 </body>
 </html>
